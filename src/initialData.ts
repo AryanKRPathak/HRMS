@@ -18,7 +18,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     },
     leavesUsed: 1,
     leavesTotal: 30,
-    avatarSeed: "arjun"
+    avatarSeed: "arjun",
+    location: "New York"
   },
   {
     id: "EMP-101",
@@ -37,7 +38,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     },
     leavesUsed: 4,
     leavesTotal: 20,
-    avatarSeed: "alex"
+    avatarSeed: "alex",
+    location: "San Francisco"
   },
   {
     id: "EMP-102",
@@ -57,7 +59,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     leavesUsed: 6,
     leavesTotal: 18,
     avatarSeed: "beatriz",
-    managerId: "EMP-101"
+    managerId: "EMP-101",
+    location: "New York"
   },
   {
     id: "EMP-103",
@@ -77,7 +80,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     leavesUsed: 8,
     leavesTotal: 20,
     avatarSeed: "cassian",
-    managerId: "EMP-101"
+    managerId: "EMP-101",
+    location: "San Francisco"
   },
   {
     id: "EMP-104",
@@ -96,7 +100,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     },
     leavesUsed: 2,
     leavesTotal: 25,
-    avatarSeed: "diana"
+    avatarSeed: "diana",
+    location: "London"
   },
   {
     id: "EMP-105",
@@ -116,7 +121,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     leavesUsed: 0,
     leavesTotal: 15,
     avatarSeed: "elijah",
-    managerId: "EMP-104"
+    managerId: "EMP-104",
+    location: "London"
   },
   {
     id: "EMP-106",
@@ -136,7 +142,8 @@ export const INITIAL_EMPLOYEES: Employee[] = [
     leavesUsed: 12,
     leavesTotal: 18,
     avatarSeed: "fiona",
-    managerId: "EMP-104"
+    managerId: "EMP-104",
+    location: "New York"
   }
 ];
 

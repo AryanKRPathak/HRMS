@@ -62,6 +62,7 @@ import OnboardingManager from "./components/OnboardingManager";
 import OffboardingManager from "./components/OffboardingManager";
 import CRMManager from "./components/CRMManager";
 import AuditLogsManager from "./components/AuditLogsManager";
+import OrganizationStructureManager from "./components/OrganizationStructureManager";
 
 export default function App() {
   // Global Persisted States
@@ -338,6 +339,7 @@ export default function App() {
     { id: "recruitment", label: "Recruitment", icon: Users, roles: ["Super Admin", "Admin", "HR Head", "HR Associate"] },
     { id: "onboarding", label: "Onboarding", icon: Layers, roles: ["Super Admin", "Admin", "HR Head", "HR Associate"] },
     { id: "offboarding", label: "Offboarding", icon: LogOut, roles: ["Super Admin", "Admin", "HR Head", "HR Associate"] },
+    { id: "org_structure", label: "Org Architect", icon: Network, roles: ["Super Admin", "Admin", "HR Head", "HR Associate"] },
     { id: "crm", label: "CRM", icon: Headphones },
     { id: "announcements", label: "Announcements", icon: Megaphone },
     { id: "audit_logs", label: "Audit Logs", icon: FileText, roles: ["Super Admin", "Admin", "HR Head"] },
@@ -650,6 +652,14 @@ export default function App() {
               currentUser={currentUser} 
               auditLogs={auditLogs} 
               onClearLogs={handleClearAuditLogs} 
+            />
+          )}
+
+          {displayTab === "org_structure" && (
+            <OrganizationStructureManager 
+              employees={employees}
+              currentUser={currentUser}
+              onAddAuditLog={handleAddAuditLog}
             />
           )}
 

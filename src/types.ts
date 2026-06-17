@@ -47,6 +47,7 @@ export interface Employee {
   avatarSeed: string; // for seeding beautiful gradient avatars
   managerId?: string;
   shiftId?: string;
+  location?: string;
 }
 
 export interface Payslip {

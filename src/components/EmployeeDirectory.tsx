@@ -16,9 +16,49 @@ import {
   Briefcase,
   AlertCircle,
   FileCheck,
-  Network
+  Network,
+  MapPin,
+  Users,
+  Sliders,
+  Target,
+  Workflow,
+  UserCheck
 } from "lucide-react";
 import { Employee, EmployeeStatus, BankDetails, getEmployeeAvatar } from "../types";
+
+export interface CustomTeam {
+  id: string;
+  name: string;
+  type: string; // e.g. "Agile Pod", "Regional Chapter", "Task Force", "Corporate Command"
+  location: string;
+  department: string;
+  leadId: string;
+  memberIds: string[];
+  description: string;
+}
+
+const INITIAL_CUSTOM_TEAMS: CustomTeam[] = [
+  {
+    id: "TEAM-01",
+    name: "Axiom Engineering Strike-Team",
+    type: "Agile Pod",
+    location: "San Francisco",
+    department: "Engineering",
+    leadId: "EMP-101", // Alexander Mercer
+    memberIds: ["EMP-103", "EMP-102"], // Cassian Rook, Beatriz Vance
+    description: "Rapid delivery unit focusing on cloud framework operations and design alignment."
+  },
+  {
+    id: "TEAM-02",
+    name: "London Operations Syndicate",
+    type: "Regional Chapter",
+    location: "London",
+    department: "Human Resources",
+    leadId: "EMP-104", // Diana Prince
+    memberIds: ["EMP-105"], // Elijah Sterling
+    description: "Regional talent acquisition and EMEA employee relations support squad."
+  }
+];
 
 interface EmployeeDirectoryProps {
   employees: Employee[];
@@ -68,6 +108,43 @@ export default function EmployeeDirectory({
   // State to track custom collapsed states for org structure nodes
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
 
+  // Dynamic Org sub-modes: traditional (manager chain), location (location/dept grid), custom (custom team groups)
+  const [orgSubMode, setOrgSubMode] = useState<"traditional" | "location" | "custom">("traditional");
+
+  // Custom persistent Teams array
+  const [customTeams, setCustomTeams] = useState<CustomTeam[]>(() => {
+    const saved = localStorage.getItem("nexahr_custom_org_teams");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return INITIAL_CUSTOM_TEAMS;
+  });
+
+  const saveCustomTeams = (updated: CustomTeam[]) => {
+    setCustomTeams(updated);
+    localStorage.setItem("nexahr_custom_org_teams", JSON.stringify(updated));
+  };
+
+  const [isTeamFormOpen, setIsTeamFormOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<CustomTeam | null>(null);
+
+  const initialTeamFormState = {
+    id: "",
+    name: "",
+    type: "Agile Pod",
+    location: "New York",
+    department: "Engineering",
+    leadId: employees[0]?.id || "",
+    memberIds: [] as string[],
+    description: ""
+  };
+  const [teamFormData, setTeamFormData] = useState(initialTeamFormState);
+  const [teamFormError, setTeamFormError] = useState("");
+
   // New Employee Form State
   const initialFormState = {
     id: "",
@@ -83,7 +160,8 @@ export default function EmployeeDirectory({
     accountNumber: "",
     routingNumber: "",
     leavesTotal: "15",
-    managerId: ""
+    managerId: "",
+    location: "New York"
   };
   const [formData, setFormData] = useState(initialFormState);
   const [formError, setFormError] = useState("");
@@ -165,7 +243,8 @@ export default function EmployeeDirectory({
         benefitPlan: formData.benefitPlan,
         bankDetails,
         leavesTotal: Number(formData.leavesTotal) || 15,
-        managerId: formData.managerId ? formData.managerId : undefined
+        managerId: formData.managerId ? formData.managerId : undefined,
+        location: formData.location
       };
       onUpdateEmployee(updated, editingEmployee.id);
       setIsFormOpen(false);
@@ -186,7 +265,8 @@ export default function EmployeeDirectory({
         leavesUsed: 0,
         leavesTotal: Number(formData.leavesTotal) || 15,
         avatarSeed: formData.name.toLowerCase().replace(/\s+/g, ""),
-        managerId: formData.managerId ? formData.managerId : undefined
+        managerId: formData.managerId ? formData.managerId : undefined,
+        location: formData.location
       };
       onAddEmployee(created);
       setIsFormOpen(false);
@@ -213,7 +293,8 @@ export default function EmployeeDirectory({
       accountNumber: emp.bankDetails?.accountNumber || "",
       routingNumber: emp.bankDetails?.routingNumber || "",
       leavesTotal: emp.leavesTotal.toString(),
-      managerId: emp.managerId || ""
+      managerId: emp.managerId || "",
+      location: emp.location || "New York"
     });
     setFormError("");
     setIsFormOpen(true);
@@ -229,6 +310,63 @@ export default function EmployeeDirectory({
     });
     setFormError("");
     setIsFormOpen(true);
+  };
+
+  // Custom Team submission and mutation handlers
+  const handleTeamSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teamFormData.name.trim() || !teamFormData.leadId) {
+      setTeamFormError("Please provide a team unit name and assign an active supervisor/lead.");
+      return;
+    }
+
+    if (editingTeam) {
+      // Edit mode
+      const updated = customTeams.map(t => t.id === editingTeam.id ? {
+        ...t,
+        name: teamFormData.name.trim(),
+        type: teamFormData.type,
+        location: teamFormData.location,
+        department: teamFormData.department,
+        leadId: teamFormData.leadId,
+        memberIds: teamFormData.memberIds,
+        description: teamFormData.description.trim()
+      } : t);
+      saveCustomTeams(updated);
+      setIsTeamFormOpen(false);
+      setEditingTeam(null);
+    } else {
+      // Add mode
+      const newTeam: CustomTeam = {
+        id: `TEAM-${Date.now()}`,
+        name: teamFormData.name.trim(),
+        type: teamFormData.type,
+        location: teamFormData.location,
+        department: teamFormData.department,
+        leadId: teamFormData.leadId,
+        memberIds: teamFormData.memberIds,
+        description: teamFormData.description.trim()
+      };
+      saveCustomTeams([...customTeams, newTeam]);
+      setIsTeamFormOpen(false);
+    }
+    setTeamFormData({
+      id: "",
+      name: "",
+      type: "Agile Pod",
+      location: "New York",
+      department: "Engineering",
+      leadId: employees[0]?.id || "",
+      memberIds: [],
+      description: ""
+    });
+    setTeamFormError("");
+  };
+
+  const handleDeleteTeam = (teamId: string) => {
+    if (window.confirm("Are you sure you would like to decommission this organizational unit? All associated direct reporting parameters will revert.")) {
+      saveCustomTeams(customTeams.filter(t => t.id !== teamId));
+    }
   };
 
   // Recursive renderer for Organizational Structure Tree Nodes
@@ -590,44 +728,568 @@ export default function EmployeeDirectory({
           </div>
         </>
       ) : (
-        /* Organization Structure Tree Chart layout */
-        <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-6">
-          <div className="border-b border-slate-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Network className="w-5 h-5 text-indigo-600" />
-                Workforce Hierarchy & Command Chain
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Visualizing direct reporting lines, structural organizational layers, and management assignments. Click names to inspect full records.
-              </p>
+        /* Dynamic Organization Architect Workspace */
+        <div className="space-y-6">
+          {/* Main Controls Panel for Org Architect */}
+          <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-xs space-y-4">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Network className="w-5.5 h-5.5 text-indigo-600" />
+                  Dynamic Organisation Architect
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Design, manage, and inspect multi-dimensional company hierarchies. Group by command chain, global locations, or model bespoke team structures.
+                </p>
+              </div>
+
+              {/* Strategy Selector tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-150 self-start xl:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setOrgSubMode("traditional")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    orgSubMode === "traditional"
+                      ? "bg-white text-indigo-600 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+                  }`}
+                  title="Traditional Direct Supervisor Command Chain"
+                >
+                  <Workflow className="w-3.5 h-3.5" />
+                  Chain of Command
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrgSubMode("location")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    orgSubMode === "location"
+                      ? "bg-white text-indigo-600 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+                  }`}
+                  title="Group workforce by registered office location or branch"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Office Locations
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrgSubMode("custom")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    orgSubMode === "custom"
+                      ? "bg-white text-indigo-600 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+                  }`}
+                  title="Model dynamic company pods, regional teams or chapters"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Custom Teams & Pods
+                </button>
+              </div>
             </div>
-            {/* Quick badges statistical legends */}
-            <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-150">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full" />
-                <span>Executive / Manager Roots</span>
+
+            {/* Explanatory banner for active mode */}
+            <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg flex items-center justify-between text-xs text-slate-600">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>
+                  {orgSubMode === "traditional" && "Traditional Model: Reporting structures reflect the 'Supervisor' specified on each profile file."}
+                  {orgSubMode === "location" && "Location Matrix: All roles grouped automatically by their office base. Reassign location inputs to see them move."}
+                  {orgSubMode === "custom" && "Bespoke Units: Create customized groupings, agile squats, task forces, or regional bodies matching small or big structures."}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-slate-205 rounded-full border border-slate-300" />
-                <span>Line Level Contributors</span>
-              </div>
+              {orgSubMode === "custom" && isHRManagement && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTeam(null);
+                    setTeamFormData({
+                      id: "",
+                      name: "",
+                      type: "Agile Pod",
+                      location: "New York",
+                      department: "Engineering",
+                      leadId: employees[0]?.id || "",
+                      memberIds: [],
+                      description: ""
+                    });
+                    setTeamFormError("");
+                    setIsTeamFormOpen(true);
+                  }}
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold font-mono text-[10px] uppercase shadow-xs cursor-pointer transition-all shrink-0"
+                >
+                  + Create Unit Node
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Org Tree Visual canvas */}
-          <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-100 overflow-x-auto min-h-[450px]">
-            <div className="space-y-6 min-w-max pb-8 pl-4 pt-2">
-              {employees.filter(emp => !emp.managerId || !employees.some(parent => parent.id === emp.managerId)).length > 0 ? (
-                employees
-                  .filter(emp => !emp.managerId || !employees.some(parent => parent.id === emp.managerId))
-                  .map(rootNode => renderOrgNode(rootNode))
+          {/* VIEW: Traditional Supervisor Command Chain tree */}
+          {orgSubMode === "traditional" && (
+            <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <span className="text-xs uppercase font-mono text-slate-400 font-bold tracking-wider">Top-Down Reporting Tree</span>
+                <span className="text-[10px] font-mono text-slate-400 bg-slate-50 border px-2 py-0.5 rounded">
+                  Roots: {employees.filter(emp => !emp.managerId || !employees.some(parent => parent.id === emp.managerId)).length}
+                </span>
+              </div>
+
+              <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-100 overflow-x-auto min-h-[480px]">
+                <div className="space-y-6 min-w-max pb-8 pl-4 pt-2">
+                  {employees.filter(emp => !emp.managerId || !employees.some(parent => parent.id === emp.managerId)).length > 0 ? (
+                    employees
+                      .filter(emp => !emp.managerId || !employees.some(parent => parent.id === emp.managerId))
+                      .map(rootNode => renderOrgNode(rootNode))
+                  ) : (
+                    <div className="py-12 text-center text-slate-400 text-sm italic">
+                      No reporting structure defined yet. Edit employee records to specify their Direct Supervisors!
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: Geographical Location Matrix Maps */}
+          {orgSubMode === "location" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {Array.from(new Set(employees.map(emp => emp.location || "New York"))).map(locName => {
+                const locEmployees = employees.filter(emp => (emp.location || "New York") === locName);
+                
+                return (
+                  <div key={locName} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl shadow-xs overflow-hidden flex flex-col justify-between transition-all">
+                    {/* Location Card Header */}
+                    <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4.5 h-4.5 text-rose-500" />
+                        <div>
+                          <h4 className="font-bold text-slate-800 text-sm">{locName} Headquarters</h4>
+                          <span className="text-[10px] font-mono font-semibold text-slate-400 uppercase">Operational Hub</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full font-bold">
+                        {locEmployees.length} Staff
+                      </span>
+                    </div>
+
+                    {/* Employee Grid List at this Location */}
+                    <div className="p-4 flex-1 space-y-3 max-h-96 overflow-y-auto">
+                      {locEmployees.map(emp => (
+                        <div key={emp.id} className="p-3 bg-slate-50/50 hover:bg-slate-50 border border-slate-150 rounded-lg flex items-center justify-between group transition-colors">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 bg-white shrink-0">
+                              <img 
+                                src={getEmployeeAvatar(emp.name)} 
+                                alt={emp.name} 
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0 pr-1">
+                              <span 
+                                onClick={() => { setViewingEmployee(emp); setIsDrawerOpen(true); }}
+                                className="font-bold text-xs text-slate-800 hover:text-indigo-600 block truncate hover:underline cursor-pointer"
+                              >
+                                {emp.name}
+                              </span>
+                              <span className="text-[9px] text-slate-400 block truncate">{emp.department} • {emp.role}</span>
+                            </div>
+                          </div>
+
+                          {/* Quick relocate trigger control */}
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <select
+                              value={emp.location || "New York"}
+                              onChange={(e) => {
+                                const updatedEmp = { ...emp, location: e.target.value };
+                                onUpdateEmployee(updatedEmp, emp.id);
+                              }}
+                              className="text-[9px] font-mono font-medium outline-hidden bg-white border border-slate-200 hover:border-slate-350 px-1.5 py-0.5 rounded cursor-pointer text-slate-500"
+                              title="Instant geographic relocation"
+                            >
+                              <option value="New York">NY</option>
+                              <option value="San Francisco">SF</option>
+                              <option value="London">LDN</option>
+                              <option value="Bengaluru">BLR</option>
+                              <option value="Mumbai">BOM</option>
+                              <option value="Tokyo">TKY</option>
+                              <option value="Remote">REM</option>
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Location Card Footer statistics */}
+                    <div className="p-3.5 bg-slate-50/30 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span>Unique Departments: {Array.from(new Set(locEmployees.map(e => e.department))).length}</span>
+                      <span>Active Roll: {locEmployees.filter(e => e.status === EmployeeStatus.ACTIVE).length}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* VIEW: Bespoke Custom Teams List & Architect Grid */}
+          {orgSubMode === "custom" && (
+            <div className="space-y-6">
+              {customTeams.length === 0 ? (
+                <div className="bg-white border border-slate-150 p-12 rounded-xl text-center flex flex-col items-center justify-center space-y-3">
+                  <div className="w-12 h-12 bg-slate-50 border border-slate-150 rounded-full flex items-center justify-center text-slate-400">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">No Bespoke Teams Configured</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mt-0.5">
+                      Your organization appears to have a flat structure. Deploy dynamic agile squads, task forces or cross-functional departments.
+                    </p>
+                  </div>
+                  {isHRManagement && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTeam(null);
+                        setTeamFormData({
+                          id: "",
+                          name: "",
+                          type: "Agile Pod",
+                          location: "New York",
+                          department: "Engineering",
+                          leadId: employees[0]?.id || "",
+                          memberIds: [],
+                          description: ""
+                        });
+                        setTeamFormError("");
+                        setIsTeamFormOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold font-mono"
+                    >
+                      + Initialise first Squad
+                    </button>
+                  )}
+                </div>
               ) : (
-                <div className="py-12 text-center text-slate-400 text-sm italic">
-                  No reporting structure defined yet. Edit employee records to specify their Direct Supervisors!
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {customTeams.map(team => {
+                    const leadEmployee = employees.find(e => e.id === team.leadId);
+                    const matchedMembers = employees.filter(e => team.memberIds.includes(e.id));
+
+                    return (
+                      <div key={team.id} className="bg-white border border-slate-155 hover:border-slate-300 rounded-xl shadow-2xs hover:shadow-xs transition-all p-5 flex flex-col justify-between space-y-4 relative overflow-hidden group">
+                        {/* Team Card Header Info */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 bg-indigo-50 border border-indigo-150 rounded text-indigo-700">
+                              {team.type}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {isHRManagement && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingTeam(team);
+                                      setTeamFormData({
+                                        id: team.id,
+                                        name: team.name,
+                                        type: team.type,
+                                        location: team.location,
+                                        department: team.department,
+                                        leadId: team.leadId,
+                                        memberIds: team.memberIds,
+                                        description: team.description
+                                      });
+                                      setTeamFormError("");
+                                      setIsTeamFormOpen(true);
+                                    }}
+                                    className="p-1 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 rounded cursor-pointer"
+                                    title="Edit structural details"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTeam(team.id)}
+                                    className="p-1 hover:bg-slate-100 text-slate-500 hover:text-rose-600 rounded cursor-pointer"
+                                    title="Decommission team structure"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <h4 className="text-base font-bold text-slate-900 group-hover:text-indigo-700 transition-colors uppercase leading-tight">
+                            {team.name}
+                          </h4>
+
+                          <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-450 font-semibold font-mono">
+                            <span>{team.department}</span>
+                            <span>•</span>
+                            <span>{team.location} Office</span>
+                          </div>
+
+                          <p className="text-xs text-slate-500 line-clamp-2 pr-1 pt-0.5">
+                            {team.description || "No custom charter defined. Click edit to configure descriptive focal parameters."}
+                          </p>
+                        </div>
+
+                        {/* Supervisor / Unit Lead card segment */}
+                        <div className="bg-slate-50 rounded-lg p-3.5 border border-slate-150 space-y-2">
+                          <span className="text-[9px] uppercase font-mono font-bold text-indigo-600 tracking-wide block">Direct Supervisor / Unit Lead</span>
+                          {leadEmployee ? (
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-white shadow-3xs shrink-0">
+                                <img 
+                                  src={getEmployeeAvatar(leadEmployee.name)} 
+                                  alt={leadEmployee.name} 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <span 
+                                  onClick={() => { setViewingEmployee(leadEmployee); setIsDrawerOpen(true); }}
+                                  className="text-xs font-bold text-slate-800 hover:text-indigo-600 hover:underline cursor-pointer block truncate"
+                                  title="View full profile"
+                                >
+                                  {leadEmployee.name}
+                                </span>
+                                <span className="text-[10px] text-slate-450 block truncate">{leadEmployee.role}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic font-mono block">No supervisor assigned. Appoint an active staff lead.</span>
+                          )}
+                        </div>
+
+                        {/* Subordinate Members Grid area */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 uppercase font-bold">
+                            <span>Collaborators & Members</span>
+                            <span>{matchedMembers.length} Members</span>
+                          </div>
+
+                          {matchedMembers.length === 0 ? (
+                            <div className="py-3 text-center text-[11px] text-slate-400 italic bg-dashed rounded-lg border border-slate-200">
+                              Choose employees to populate structural members!
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                              {matchedMembers.map(member => (
+                                <div 
+                                  key={member.id} 
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-250 hover:bg-slate-100 rounded-full text-[10px] font-semibold text-slate-700 hover:border-slate-350 transition-colors cursor-pointer"
+                                  onClick={() => { setViewingEmployee(member); setIsDrawerOpen(true); }}
+                                  title={`Inspect ${member.name} (${member.role})`}
+                                >
+                                  <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border bg-white">
+                                    <img 
+                                      src={getEmployeeAvatar(member.name)} 
+                                      alt={member.name} 
+                                      className="w-full h-full object-cover animate-fade-in"
+                                    />
+                                  </div>
+                                  <span>{member.name.split(" ")[0]}</span>
+
+                                  {isHRManagement && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const withRemoved = team.memberIds.filter(id => id !== member.id);
+                                        const updatedTeams = customTeams.map(t => t.id === team.id ? { ...t, memberIds: withRemoved } : t);
+                                        saveCustomTeams(updatedTeams);
+                                      }}
+                                      className="text-slate-400 hover:text-rose-600 hover:bg-white rounded-full p-[1px]"
+                                      title="Remove from squad"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* FORM: Dynamic Bespoke Team Creator / Editor Dialog Overlay */}
+      {isTeamFormOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-scale-up">
+            {/* Modal Header */}
+            <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-slate-900 text-base">{editingTeam ? "Modify Structural Unit" : "Architect Bespoke Node"}</h4>
+                <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Dynamic Org Schema Builder</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsTeamFormOpen(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-405 hover:text-slate-655"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form body */}
+            <form onSubmit={handleTeamSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {teamFormError && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-2 text-rose-700 text-xs font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{teamFormError}</span>
+                </div>
+              )}
+
+              {/* Node Name */}
+              <div>
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block mb-1">Unit / Team Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Seattle Client Success Chapter"
+                  value={teamFormData.name}
+                  onChange={(e) => setTeamFormData({ ...teamFormData, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none rounded-lg text-sm text-slate-800 transition-all font-medium"
+                />
+              </div>
+
+              {/* Hierarchy Node Class Type */}
+              <div>
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block mb-1">Hierarchy Classification</label>
+                <select
+                  value={teamFormData.type}
+                  onChange={(e) => setTeamFormData({ ...teamFormData, type: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 outline-none rounded-lg text-sm text-slate-800 cursor-pointer"
+                >
+                  <option value="Agile Pod">Agile Pod</option>
+                  <option value="Regional Chapter">Regional Chapter</option>
+                  <option value="Task Force">Task Force</option>
+                  <option value="Corporate Command">Corporate Command</option>
+                  <option value="Special Interest Council">Special Interest Council</option>
+                </select>
+              </div>
+
+              {/* Geographic affiliation */}
+              <div>
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block mb-1">Geographic Headquarters</label>
+                <select
+                  value={teamFormData.location}
+                  onChange={(e) => setTeamFormData({ ...teamFormData, location: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 outline-none rounded-lg text-sm text-slate-800 cursor-pointer"
+                >
+                  <option value="New York">New York</option>
+                  <option value="San Francisco">San Francisco</option>
+                  <option value="London">London</option>
+                  <option value="Bengaluru">Bengaluru</option>
+                  <option value="Mumbai">Mumbai</option>
+                  <option value="Tokyo">Tokyo</option>
+                  <option value="Remote">Remote</option>
+                </select>
+              </div>
+
+              {/* Departmental alignment */}
+              <div>
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block mb-1">Corporate Department</label>
+                <select
+                  value={teamFormData.department}
+                  onChange={(e) => setTeamFormData({ ...teamFormData, department: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 outline-none rounded-lg text-sm text-slate-800 cursor-pointer"
+                >
+                  {Array.from(new Set(employees.map(emp => emp.department))).map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Leader Picker */}
+              <div>
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block mb-1">Appointed Supervisor / Lead</label>
+                <select
+                  value={teamFormData.leadId}
+                  onChange={(e) => setTeamFormData({ ...teamFormData, leadId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 outline-none rounded-lg text-sm text-slate-800 cursor-pointer font-medium"
+                >
+                  <option value="">-- Choose supervisor --</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Node Focus Description */}
+              <div>
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block mb-1">Focus & Structural Charter</label>
+                <textarea
+                  rows={2}
+                  placeholder="Describe focus, target outcomes and responsibilities of this structural node..."
+                  value={teamFormData.description}
+                  onChange={(e) => setTeamFormData({ ...teamFormData, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none rounded-lg text-sm text-slate-800 resize-none transition-all"
+                />
+              </div>
+
+              {/* Members Multiselect Grid */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-mono text-slate-400 font-bold block">Select Structure Members</label>
+                <div className="border border-slate-200/80 rounded-xl p-3 max-h-40 overflow-y-auto space-y-2 bg-slate-50">
+                  {employees.map(emp => {
+                    const isChecked = teamFormData.memberIds.includes(emp.id);
+                    return (
+                      <label key={emp.id} className="flex items-center gap-2.5 p-1.5 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-150 select-none">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const updatedMembers = isChecked
+                              ? teamFormData.memberIds.filter(id => id !== emp.id)
+                              : [...teamFormData.memberIds, emp.id];
+                            setTeamFormData({ ...teamFormData, memberIds: updatedMembers });
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
+                        />
+                        <div className="w-5.5 h-5.5 rounded-full overflow-hidden border">
+                          <img 
+                            src={getEmployeeAvatar(emp.name)} 
+                            alt={emp.name} 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-slate-750 truncate leading-tight">{emp.name}</div>
+                          <div className="text-[9px] text-slate-450 truncate font-mono leading-none mt-0.5">{emp.role}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 flex items-center justify-end gap-3.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsTeamFormOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold cursor-pointer shadow-sm transition-all"
+                >
+                  {editingTeam ? "Save Structure" : "Launch Structure Node"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -674,6 +1336,14 @@ export default function EmployeeDirectory({
                   <div>
                     <span className="text-[10px] uppercase font-mono text-slate-400 block font-semibold">Organizational Unit</span>
                     <span className="text-sm font-medium text-slate-800">{viewingEmployee.department}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                  <MapPin className="w-4.5 h-4.5 text-indigo-500 shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase font-mono text-slate-400 block font-semibold">Primary Location / Branch</span>
+                    <span className="text-sm font-medium text-slate-800">{viewingEmployee.location || "New York"}</span>
                   </div>
                 </div>
 
@@ -942,6 +1612,24 @@ export default function EmployeeDirectory({
                     <option value={EmployeeStatus.ONBOARDING}>Onboarding</option>
                     <option value={EmployeeStatus.LEAVE}>On Leave</option>
                     <option value={EmployeeStatus.TERMINATED}>Terminated</option>
+                  </select>
+                </div>
+
+                {/* Primary Location/Branch Field */}
+                <div>
+                  <label className="text-xs uppercase font-mono text-slate-400 font-semibold block mb-1">Office Location / Branch</label>
+                  <select
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none rounded-lg text-sm text-slate-800 cursor-pointer"
+                  >
+                    <option value="New York">New York</option>
+                    <option value="San Francisco">San Francisco</option>
+                    <option value="London">London</option>
+                    <option value="Bengaluru">Bengaluru</option>
+                    <option value="Mumbai">Mumbai</option>
+                    <option value="Tokyo">Tokyo</option>
+                    <option value="Remote">Remote</option>
                   </select>
                 </div>
 
